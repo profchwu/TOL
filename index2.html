@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>高齡者執行功能評估系統 (Chen et al. 2024 實驗版)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap');
+        body { font-family: 'Noto Sans TC', sans-serif; background-color: #f1f5f9; }
+        .stroop-btn { transition: all 0.1s ease; }
+        .stroop-btn:active { transform: scale(0.95); filter: brightness(0.9); }
+        .tol-peg { width: 14px; border-radius: 7px; background: #cbd5e1; position: relative; margin: 0 25px; transition: background 0.3s; }
+        .tol-peg.selected { background: #6366f1; box-shadow: 0 0 10px rgba(99, 102, 241, 0.5); }
+        .tol-bead { width: 44px; height: 44px; border-radius: 50%; position: absolute; left: -15px; cursor: pointer; transition: bottom 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        .bead-red { background: #ef4444; border: 3px solid #b91c1c; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+        .bead-green { background: #22c55e; border: 3px solid #15803d; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+        .bead-blue { background: #3b82f6; border: 3px solid #1d4ed8; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+        .step-active { display: block; }
+        .step-hidden { display: none; }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+    <div id="app" class="max-w-5xl mx-auto bg-white rounded-3xl shadow-2xl overflow-hidden min-h-[700px] flex flex-col">
+        
+        <!-- Header -->
+        <header class="bg-indigo-700 text-white p-8 flex justify-between items-center">
+            <div>
+                <h1 class="text-2xl font-bold">高齡者執行功能評估系統</h1>
+                <p class="text-indigo-100 text-sm mt-1">基於 Chen et al. (2024) 身體活動與久坐行為對執行功能影響之研究</p>
+            </div>
+            <div id="timer-display" class="hidden text-xl font-mono bg-indigo-800 px-4 py-2 rounded-lg italic">00.00s</div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="flex-grow p-8">
+            <!-- Step 1: Info & Grouping -->
+            <section id="step-1" class="step-active space-y-8">
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    <div class="lg:col-span-2 space-y-6">
+                        <h2 class="text-xl font-bold text-gray-800 border-l-4 border-indigo-500 pl-3">受試者基本資料</h2>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="space-y-1">
+                                <label class="text-sm font-semibold text-gray-600">受試者編號</label>
+                                <input type="text" id="p-id" class="w-full border-2 border-gray-100 rounded-xl p-3 focus:border-indigo-500 outline-none transition" placeholder="S001">
+                            </div>
+                            <div class="space-y-1">
+                                <label class="text-sm font-semibold text-gray-600">年齡 (需 ≥ 65)</label>
+                                <input type="number" id="p-age" class="w-full border-2 border-gray-100 rounded-xl p-3" value="65">
+                            </div>
+                            <div class="space-y-1">
+                                <label class="text-sm font-semibold text-gray-600">身高 (cm)</label>
+                                <input type="number" id="p-height" class="w-full border-2 border-gray-100 rounded-xl p-3" value="160">
+                            </div>
+                            <div class="space-y-1">
+                                <label class="text-sm font-semibold text-gray-600">體重 (kg)</label>
+                                <input type="number" id="p-weight" class="w-full border-2 border-gray-100 rounded-xl p-3" value="60">
+                            </div>
+                        </div>
+
+                        <h2 class="text-xl font-bold text-gray-800 border-l-4 border-indigo-500 pl-3 pt-4">生活型態調查</h2>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div class="bg-indigo-50 p-5 rounded-2xl">
+                                <label class="block text-sm font-bold text-indigo-900 mb-2">週身體活動量 (PA)</label>
+                                <input type="number" id="p-pa" class="w-full bg-white rounded-lg p-3 shadow-inner" value="1500">
+                                <p class="text-xs text-indigo-400 mt-2">MET-min/week (高 PA > 1200)</p>
+                            </div>
+                            <div class="bg-slate-50 p-5 rounded-2xl">
+                                <label class="block text-sm font-bold text-slate-900 mb-2">每日久坐時間 (SB)</label>
+                                <input type="number" id="p-sb" class="w-full bg-white rounded-lg p-3 shadow-inner" value="300">
+                                <p class="text-xs text-slate-400 mt-2">分鐘/天 (高 SB > 480 分鐘)</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-amber-50 p-6 rounded-3xl border border-amber-100 self-start">
+                        <h3 class="font-bold text-amber-800 mb-3 flex items-center">
+                            <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path></svg>
+                            實驗流程說明
+                        </h3>
+                        <ol class="text-sm text-amber-700 space-y-3 leading-relaxed">
+                            <li>1. <b>核心測驗</b>：Stroop 抑制控制。需辨識文字顏色並排除干擾。</li>
+                            <li>2. <b>高階測驗</b>：TOL 倫敦塔。測量計畫能力與問題解決效率。</li>
+                            <li>3. <b>數據收集</b>：系統將自動計算並生成符合研究規格的結果。</li>
+                        </ol>
+                    </div>
+                </div>
+
+                <button onclick="startAssessment()" class="w-full bg-indigo-600 text-white font-black py-4 px-8 rounded-2xl hover:bg-indigo-700 shadow-xl shadow-indigo-200 transition-all text-lg tracking-widest">
+                    進入評估流程
+                </button>
+            </section>
+
+            <!-- Step 2: Stroop Test -->
+            <section id="step-2" class="step-hidden h-full flex flex-col items-center justify-center space-y-12">
+                <div class="text-center space-y-4">
+                    <span id="stroop-condition-badge" class="px-4 py-1 rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold tracking-widest">模式名稱</span>
+                    <h2 id="stroop-instruction" class="text-2xl font-bold text-gray-800">請判斷顯示的顏色</h2>
+                </div>
+
+                <div id="stroop-container" class="w-80 h-40 flex items-center justify-center rounded-3xl bg-gray-50 shadow-inner border border-gray-100">
+                    <span id="stroop-text" class="text-6xl font-black transition-all"></span>
+                </div>
+
+                <div class="grid grid-cols-3 gap-6 w-full max-w-lg">
+                    <button onclick="handleStroopInput('red')" class="stroop-btn py-8 rounded-3xl bg-red-500 text-white font-bold text-2xl shadow-lg hover:shadow-red-200">紅</button>
+                    <button onclick="handleStroopInput('green')" class="stroop-btn py-8 rounded-3xl bg-green-500 text-white font-bold text-2xl shadow-lg hover:shadow-green-200">綠</button>
+                    <button onclick="handleStroopInput('blue')" class="stroop-btn py-8 rounded-3xl bg-blue-500 text-white font-bold text-2xl shadow-lg hover:shadow-blue-200">藍</button>
+                </div>
+
+                <div class="w-full max-w-lg space-y-2">
+                    <div class="flex justify-between text-xs font-bold text-gray-400 px-1">
+                        <span>進度</span>
+                        <span id="stroop-counter">0 / 25</span>
+                    </div>
+                    <div class="bg-gray-100 rounded-full h-3 overflow-hidden">
+                        <div id="stroop-progress" class="bg-indigo-500 h-full transition-all duration-300" style="width: 0%"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Step 3: Tower of London (TOL) -->
+            <section id="step-3" class="step-hidden flex flex-col items-center space-y-8">
+                <div class="flex items-center justify-between w-full border-b pb-4">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-10 h-10 bg-indigo-600 rounded-lg flex items-center justify-center text-white font-bold" id="tol-problem-idx">1</div>
+                        <div>
+                            <h2 class="font-bold text-gray-800">計畫能力測驗 (TOL)</h2>
+                            <p class="text-xs text-gray-400">當前目標：使用最少步數移動</p>
+                        </div>
+                    </div>
+                    <div class="flex space-x-6 text-sm">
+                        <div class="text-center">
+                            <p class="text-gray-400 text-xs uppercase font-bold">目前移動</p>
+                            <p id="tol-moves" class="text-xl font-black text-indigo-600">0</p>
+                        </div>
+                        <div class="text-center">
+                            <p class="text-gray-400 text-xs uppercase font-bold">最小步數</p>
+                            <p id="tol-min-moves" class="text-xl font-black text-gray-600">3</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex flex-col lg:flex-row items-center justify-around w-full gap-12 bg-slate-50 p-8 rounded-3xl">
+                    <!-- Goal Position -->
+                    <div class="space-y-4">
+                        <div class="text-center py-1 px-3 bg-slate-200 text-slate-600 text-xs font-bold rounded-full inline-block">目標狀態 (Goal State)</div>
+                        <div class="flex items-end justify-center h-32 w-72 px-4">
+                            <div id="goal-peg-0" class="tol-peg h-24"></div>
+                            <div id="goal-peg-1" class="tol-peg h-16"></div>
+                            <div id="goal-peg-2" class="tol-peg h-8"></div>
+                        </div>
+                    </div>
+
+                    <!-- Current Position -->
+                    <div class="space-y-4">
+                        <div class="text-center py-1 px-3 bg-indigo-100 text-indigo-600 text-xs font-bold rounded-full inline-block">實際操作 (Current State)</div>
+                        <div id="tol-board" class="flex items-end justify-center h-32 w-72 px-4 cursor-pointer">
+                            <div id="peg-0" class="tol-peg h-24" onclick="handlePegClick(0)"></div>
+                            <div id="peg-1" class="tol-peg h-16" onclick="handlePegClick(1)"></div>
+                            <div id="peg-2" class="tol-peg h-8" onclick="handlePegClick(2)"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="tol-feedback" class="h-6 text-indigo-500 font-bold text-center"></div>
+                
+                <div class="w-full bg-indigo-50 p-6 rounded-2xl border border-indigo-100">
+                    <h4 class="text-xs font-bold text-indigo-400 mb-2">支架容量限制</h4>
+                    <div class="flex justify-around text-xs font-bold text-indigo-800">
+                        <span>支架 1：最多 3 顆</span>
+                        <span>支架 2：最多 2 顆</span>
+                        <span>支架 3：最多 1 顆</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Step 4: Final Summary -->
+            <section id="step-4" class="step-hidden space-y-8">
+                <div class="flex items-center space-x-4 bg-green-50 p-8 rounded-3xl border border-green-200">
+                    <div class="w-16 h-16 bg-green-500 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-green-100">
+                        <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
+                    </div>
+                    <div>
+                        <h2 class="text-3xl font-black text-green-900">評估圓滿完成</h2>
+                        <p class="text-green-700">分類結果：<span id="res-group" class="font-bold underline decoration-2"></span></p>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <!-- Stroop Results -->
+                    <div class="bg-white border-2 border-slate-100 rounded-3xl p-6 shadow-sm">
+                        <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center">
+                            <span class="w-2 h-6 bg-indigo-500 rounded mr-2"></span>
+                            Stroop 測驗 (平均反應時間)
+                        </h3>
+                        <div class="space-y-3" id="res-stroop-list"></div>
+                    </div>
+
+                    <!-- TOL Results -->
+                    <div class="bg-white border-2 border-slate-100 rounded-3xl p-6 shadow-sm">
+                        <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center">
+                            <span class="w-2 h-6 bg-emerald-500 rounded mr-2"></span>
+                            TOL 倫敦塔 (計畫指標平均)
+                        </h3>
+                        <div class="space-y-3" id="res-tol-list"></div>
+                    </div>
+                </div>
+
+                <div class="flex flex-col sm:flex-row gap-4 pt-4">
+                    <button onclick="downloadCSV()" class="flex-grow bg-indigo-600 text-white font-black py-4 rounded-2xl hover:bg-indigo-700 shadow-xl transition">導出研究數據 (CSV)</button>
+                    <button onclick="location.reload()" class="px-8 bg-slate-100 text-slate-600 font-bold py-4 rounded-2xl hover:bg-slate-200">重新測驗</button>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script>
+        // --- 全域變數與狀態管理 ---
+        let participantData = {};
+        let stroopRawData = []; 
+        let tolProblemsData = [];
+        let startTimeGlobal = 0;
+
+        const COLORS = { red: '#ef4444', green: '#22c55e', blue: '#3b82f6', black: '#000000' };
+        const COLOR_NAMES = { red: '紅', green: '綠', blue: '藍' };
+        const PEGS_CAPACITY = [3, 2, 1];
+
+        // --- 輔助功能 ---
+        function showStep(stepNum) {
+            document.querySelectorAll('main > section').forEach(s => s.classList.replace('step-active', 'step-hidden'));
+            document.getElementById(`step-${stepNum}`).classList.replace('step-hidden', 'step-active');
+            if(stepNum === 2 || stepNum === 3) document.getElementById('timer-display').classList.remove('hidden');
+            else document.getElementById('timer-display').classList.add('hidden');
+        }
+
+        function updateTimer() {
+            if (startTimeGlobal > 0) {
+                const elapsed = (performance.now() - startTimeGlobal) / 1000;
+                document.getElementById('timer-display').innerText = elapsed.toFixed(2) + "s";
+            }
+            requestAnimationFrame(updateTimer);
+        }
+        requestAnimationFrame(updateTimer);
+
+        // --- Step 1: 初始化 ---
+        function startAssessment() {
+            const id = document.getElementById('p-id').value || "S" + Date.now().toString().slice(-4);
+            const age = parseInt(document.getElementById('p-age').value);
+            const pa = parseInt(document.getElementById('p-pa').value);
+            const sb = parseInt(document.getElementById('p-sb').value);
+            const height = parseFloat(document.getElementById('p-height').value) / 100;
+            const weight = parseFloat(document.getElementById('p-weight').value);
+            const bmi = (weight / (height * height)).toFixed(2);
+
+            // 論文邏輯：PA > 1200 METs, SB > 8hr (480min)
+            let group = "";
+            const isHighPA = pa > 1200;
+            const isHighSB = sb > 480; 
+
+            if (isHighPA && !isHighSB) group = "PHSL";
+            else if (isHighPA && isHighSB) group = "PHSH";
+            else if (!isHighPA && !isHighSB) group = "PLSL";
+            else group = "PLSH";
+
+            participantData = { id, age, bmi, pa, sb, group };
+            initStroop();
+        }
+
+        // --- Step 2: Stroop 測驗 (50 刺激/條件 -> Demo版改為 5 刺激/條件) ---
+        let stroopQueue = [];
+        let currentStroopIdx = 0;
+        let stroopTrialStartTime = 0;
+        const STROOP_TRIALS_PER_TYPE = 5; 
+
+        function initStroop() {
+            showStep(2);
+            stroopQueue = [];
+            const types = ['word', 'congruent', 'square', 'neutral', 'incongruent'];
+            
+            types.forEach(type => {
+                for (let i = 0; i < STROOP_TRIALS_PER_TYPE; i++) {
+                    const keys = Object.keys(COLOR_NAMES);
+                    const colorKey = keys[Math.floor(Math.random() * keys.length)];
+                    const textKey = keys[Math.floor(Math.random() * keys.length)];
+                    stroopQueue.push({ type, color: colorKey, text: textKey });
+                }
+            });
+            // 打亂題目順序
+            stroopQueue.sort(() => Math.random() - 0.5);
+            nextStroop();
+        }
+
+        function nextStroop() {
+            if (currentStroopIdx >= stroopQueue.length) {
+                initTOL();
+                return;
+            }
+
+            const trial = stroopQueue[currentStroopIdx];
+            const display = document.getElementById('stroop-text');
+            const condBadge = document.getElementById('stroop-condition-badge');
+            
+            document.getElementById('stroop-progress').style.width = `${(currentStroopIdx / stroopQueue.length) * 100}%`;
+            document.getElementById('stroop-counter').innerText = `${currentStroopIdx + 1} / ${stroopQueue.length}`;
+
+            let text = "";
+            let color = "";
+
+            switch(trial.type) {
+                case 'word': 
+                    text = COLOR_NAMES[trial.text]; color = 'black'; 
+                    condBadge.innerText = "文字辨識"; break;
+                case 'congruent': 
+                    text = COLOR_NAMES[trial.color]; color = trial.color; 
+                    condBadge.innerText = "一致性顏色"; break;
+                case 'square': 
+                    text = "■■■"; color = trial.color; 
+                    condBadge.innerText = "顏色方塊"; break;
+                case 'neutral': 
+                    text = "紙張"; color = trial.color; 
+                    condBadge.innerText = "中性字(無關字)"; break;
+                case 'incongruent': 
+                    let mismatchText = Object.keys(COLOR_NAMES).find(c => c !== trial.color);
+                    text = COLOR_NAMES[mismatchText]; color = trial.color; 
+                    condBadge.innerText = "不一致(干擾條件)"; break;
+            }
+
+            display.innerText = text;
+            display.style.color = COLORS[color];
+            stroopTrialStartTime = performance.now();
+            startTimeGlobal = performance.now();
+        }
+
+        function handleStroopInput(choice) {
+            const rt = performance.now() - stroopTrialStartTime;
+            const trial = stroopQueue[currentStroopIdx];
+            const isCorrect = (choice === trial.color) || (trial.type === 'word' && COLOR_NAMES[choice] === document.getElementById('stroop-text').innerText);
+
+            stroopRawData.push({ ...trial, rt, isCorrect });
+            currentStroopIdx++;
+            nextStroop();
+        }
+
+        // --- Step 3: TOL 倫敦塔 ---
+        // 定義問題庫 (根據論文 3-7 步要求)
+        const TOL_PROBLEMS = [
+            { id: 1, minMoves: 3, start: [['red', 'green'], ['blue'], []], goal: [['red'], ['green'], ['blue']] },
+            { id: 2, minMoves: 4, start: [['blue', 'green'], ['red'], []], goal: [[], ['red', 'green'], ['blue']] },
+            { id: 3, minMoves: 5, start: [['red', 'blue'], ['green'], []], goal: [['green', 'red'], [], ['blue']] }
+        ];
+
+        let currentProbIdx = 0;
+        let currentPegs = [];
+        let currentGoal = [];
+        let selectedPeg = null;
+        let probStartTime = 0;
+        let firstMoveTime = 0;
+        let moveCount = 0;
+
+        function initTOL() {
+            showStep(3);
+            loadProblem(0);
+        }
+
+        function loadProblem(idx) {
+            if (idx >= TOL_PROBLEMS.length) {
+                showResults();
+                return;
+            }
+            currentProbIdx = idx;
+            const prob = TOL_PROBLEMS[idx];
+            currentPegs = JSON.parse(JSON.stringify(prob.start));
+            currentGoal = JSON.parse(JSON.stringify(prob.goal));
+            moveCount = 0;
+            firstMoveTime = 0;
+            selectedPeg = null;
+            
+            document.getElementById('tol-problem-idx').innerText = idx + 1;
+            document.getElementById('tol-min-moves').innerText = prob.minMoves;
+            document.getElementById('tol-feedback').innerText = "";
+            
+            renderGoal();
+            renderCurrent();
+            probStartTime = performance.now();
+            startTimeGlobal = performance.now();
+        }
+
+        function renderGoal() {
+            for (let i = 0; i < 3; i++) {
+                const peg = document.getElementById(`goal-peg-${i}`);
+                peg.innerHTML = '';
+                currentGoal[i].forEach((color, idx) => {
+                    const bead = document.createElement('div');
+                    bead.className = `tol-bead bead-${color} opacity-60`;
+                    bead.style.bottom = `${idx * 45}px`;
+                    peg.appendChild(bead);
+                });
+            }
+        }
+
+        function renderCurrent() {
+            for (let i = 0; i < 3; i++) {
+                const peg = document.getElementById(`peg-${i}`);
+                peg.innerHTML = '';
+                if (selectedPeg === i) peg.classList.add('selected');
+                else peg.classList.remove('selected');
+
+                currentPegs[i].forEach((color, idx) => {
+                    const bead = document.createElement('div');
+                    bead.className = `tol-bead bead-${color}`;
+                    bead.style.bottom = `${idx * 45}px`;
+                    peg.appendChild(bead);
+                });
+            }
+            document.getElementById('tol-moves').innerText = moveCount;
+
+            if (JSON.stringify(currentPegs) === JSON.stringify(currentGoal)) {
+                const endTime = performance.now();
+                const prob = TOL_PROBLEMS[currentProbIdx];
+                
+                tolProblemsData.push({
+                    id: prob.id,
+                    minMoves: prob.minMoves,
+                    actualMoves: moveCount,
+                    tms: moveCount - prob.minMoves,
+                    tcs: moveCount === prob.minMoves ? 1 : 0,
+                    tit: firstMoveTime - probStartTime,
+                    tet: endTime - firstMoveTime,
+                    tpst: endTime - probStartTime
+                });
+
+                document.getElementById('tol-feedback').innerText = "太棒了！準備下一題...";
+                setTimeout(() => loadProblem(currentProbIdx + 1), 1200);
+            }
+        }
+
+        function handlePegClick(idx) {
+            if (selectedPeg === null) {
+                if (currentPegs[idx].length > 0) selectedPeg = idx;
+            } else {
+                if (selectedPeg !== idx) {
+                    if (currentPegs[idx].length < PEGS_CAPACITY[idx]) {
+                        if (firstMoveTime === 0) firstMoveTime = performance.now();
+                        const bead = currentPegs[selectedPeg].pop();
+                        currentPegs[idx].push(bead);
+                        moveCount++;
+                    } else {
+                        document.getElementById('tol-feedback').innerText = "支架容量已達上限！";
+                        setTimeout(() => document.getElementById('tol-feedback').innerText = "", 1000);
+                    }
+                }
+                selectedPeg = null;
+            }
+            renderCurrent();
+        }
+
+        // --- Step 4: 結果分析 ---
+        function showResults() {
+            showStep(4);
+            document.getElementById('res-group').innerText = participantData.group;
+
+            // 計算 Stroop 平均 RT
+            const stroopTypes = ['word', 'congruent', 'square', 'neutral', 'incongruent'];
+            const resStroopList = document.getElementById('res-stroop-list');
+            resStroopList.innerHTML = "";
+            
+            stroopTypes.forEach(type => {
+                const items = stroopRawData.filter(d => d.type === type);
+                const avgRt = items.reduce((a, b) => a + b.rt, 0) / items.length;
+                const div = document.createElement('div');
+                div.className = "flex justify-between items-center p-3 bg-slate-50 rounded-xl";
+                div.innerHTML = `<span class="text-sm font-bold text-gray-600">${type.toUpperCase()}</span>
+                                 <span class="font-mono font-bold text-indigo-600">${avgRt.toFixed(2)} ms</span>`;
+                resStroopList.appendChild(div);
+            });
+
+            // 計算 TOL 五大指標平均
+            const resTolList = document.getElementById('res-tol-list');
+            resTolList.innerHTML = "";
+            const metrics = [
+                { label: 'TMS (移動偏差)', key: 'tms', unit: '' },
+                { label: 'TCS (正確次數)', key: 'tcs', unit: '' },
+                { label: 'TIT (初始時間)', key: 'tit', unit: ' ms' },
+                { label: 'TET (執行時間)', key: 'tet', unit: ' ms' },
+                { label: 'TPST (總解決時間)', key: 'tpst', unit: ' ms' }
+            ];
+
+            metrics.forEach(m => {
+                const avg = tolProblemsData.reduce((a, b) => a + b[m.key], 0) / tolProblemsData.length;
+                const div = document.createElement('div');
+                div.className = "flex justify-between items-center p-3 bg-emerald-50 rounded-xl";
+                div.innerHTML = `<span class="text-sm font-bold text-emerald-800">${m.label}</span>
+                                 <span class="font-mono font-bold text-emerald-600">${avg.toFixed(2)}${m.unit}</span>`;
+                resTolList.appendChild(div);
+            });
+        }
+
+        function downloadCSV() {
+            let csv = "指標,類別/題號,數值\n";
+            csv += `受試者ID,基本資料,${participantData.id}\n`;
+            csv += `年齡,基本資料,${participantData.age}\n`;
+            csv += `分組,基本資料,${participantData.group}\n`;
+            csv += `BMI,基本資料,${participantData.bmi}\n`;
+            
+            stroopRawData.forEach((d, i) => {
+                csv += `Stroop_Trial_${i},${d.type},${d.rt.toFixed(2)}\n`;
+            });
+            
+            tolProblemsData.forEach(d => {
+                csv += `TOL_Problem_${d.id},TMS,${d.tms}\n`;
+                csv += `TOL_Problem_${d.id},TIT,${d.tit.toFixed(2)}\n`;
+                csv += `TOL_Problem_${d.id},TET,${d.tet.toFixed(2)}\n`;
+            });
+
+            const blob = new Blob(["\ufeff" + csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = `Chen2024_Data_${participantData.id}.csv`;
+            link.click();
+        }
+    </script>
+</body>
+</html>
