@@ -1,0 +1,458 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { Play, RotateCcw, Check, X, ArrowRight, BrainCircuit, Activity } from 'lucide-react';
+
+export default function TableTennisCognitiveTest() {
+  const [screen, setScreen] = useState('menu'); // 'menu', 'tol_intro', 'tol_game', 'stroop_intro', 'stroop_game', 'results'
+  const [results, setResults] = useState({
+    tol: { time: 0, errors: 0, completed: false },
+    stroop: { congruentTime: 0, incongruentTime: 0, accuracy: 0, completed: false }
+  });
+
+  // --- TOL (Tower of London) 桌球戰術規劃測驗 狀態與邏輯 ---
+  const tolLevels = [
+    {
+      id: 1,
+      goal: "戰術一：接發球先將球控制在網前，接著直接在台內起板攻擊得分。",
+      target: ["擺短", "挑打"],
+      options: ["擺短", "劈長", "挑打", "退台拉球"]
+    },
+    {
+      id: 2,
+      goal: "戰術二：先將球長推到底線逼迫對手退台，對手勉強回擊後，輕鬆擋回空檔，最後致命一擊。",
+      target: ["劈長", "擋球", "爆衝"],
+      options: ["擺短", "劈長", "擋球", "爆衝", "削球"]
+    },
+    {
+      id: 3,
+      goal: "戰術三：先短球過渡，對手回短後，主動切長球改變節奏，對手拉起後，進行高質量反拉。",
+      target: ["擺短", "劈長", "反拉"],
+      options: ["擺短", "劈長", "挑打", "擋球", "反拉"]
+    }
+  ];
+  
+  const [currentLevelIndex, setCurrentLevelIndex] = useState(0);
+  const [tolSequence, setTolSequence] = useState([]);
+  const [tolErrors, setTolErrors] = useState(0);
+  const [tolStartTime, setTolStartTime] = useState(null);
+
+  // --- Stroop 旋轉抑制測驗 狀態與邏輯 ---
+  const stroopTotalTrials = 12;
+  const [stroopTrial, setStroopTrial] = useState(0);
+  const [stroopData, setStroopData] = useState([]); // { type, rxTime, correct }
+  const [currentStimulus, setCurrentStimulus] = useState(null);
+  const [stimulusTime, setStimulusTime] = useState(null);
+  const [stroopPhase, setStroopPhase] = useState('ready'); // ready, show, feedback
+  const [stroopFeedback, setStroopFeedback] = useState('');
+
+  // 遊戲啟動函數
+  const startTOL = () => {
+    setCurrentLevelIndex(0);
+    setTolSequence([]);
+    setTolErrors(0);
+    setTolStartTime(Date.now());
+    setScreen('tol_game');
+  };
+
+  const startStroop = () => {
+    setStroopTrial(0);
+    setStroopData([]);
+    setScreen('stroop_game');
+    nextStroopTrial();
+  };
+
+  // --- TOL 互動邏輯 ---
+  const handleTolSelect = (move) => {
+    if (tolSequence.length < tolLevels[currentLevelIndex].target.length) {
+      setTolSequence([...tolSequence, move]);
+    }
+  };
+
+  const handleTolRemove = (index) => {
+    setTolSequence(tolSequence.filter((_, i) => i !== index));
+  };
+
+  const checkTolSequence = () => {
+    const level = tolLevels[currentLevelIndex];
+    const isCorrect = tolSequence.length === level.target.length && 
+                      tolSequence.every((val, index) => val === level.target[index]);
+    
+    if (isCorrect) {
+      if (currentLevelIndex < tolLevels.length - 1) {
+        setCurrentLevelIndex(currentLevelIndex + 1);
+        setTolSequence([]);
+      } else {
+        // 完成 TOL
+        const timeTaken = (Date.now() - tolStartTime) / 1000;
+        setResults(prev => ({ ...prev, tol: { time: timeTaken.toFixed(1), errors: tolErrors, completed: true } }));
+        setScreen('menu');
+      }
+    } else {
+      setTolErrors(prev => prev + 1);
+      setTolSequence([]);
+      alert("戰術邏輯錯誤，請重新規劃！(記錄1次誤差)");
+    }
+  };
+
+  // --- Stroop 互動邏輯 ---
+  const nextStroopTrial = () => {
+    setStroopPhase('ready');
+    setTimeout(() => {
+      const isCongruent = Math.random() > 0.5;
+      const types = [
+        { color: 'bg-red-500', text: '上旋', actualAction: '上旋(壓球)', type: 'congruent' },
+        { color: 'bg-blue-500', text: '下旋', actualAction: '下旋(搓球)', type: 'congruent' },
+        { color: 'bg-red-500', text: '下旋', actualAction: '上旋(壓球)', type: 'incongruent' },
+        { color: 'bg-blue-500', text: '上旋', actualAction: '下旋(搓球)', type: 'incongruent' },
+      ];
+      
+      let pool = isCongruent ? types.slice(0,2) : types.slice(2,4);
+      const selected = pool[Math.floor(Math.random() * pool.length)];
+      
+      setCurrentStimulus(selected);
+      setStimulusTime(Date.now());
+      setStroopPhase('show');
+    }, 1000); // 1秒準備時間
+  };
+
+  const handleStroopResponse = (action) => {
+    if (stroopPhase !== 'show') return;
+    
+    const rxTime = Date.now() - stimulusTime;
+    const isCorrect = action === currentStimulus.actualAction;
+    
+    setStroopData(prev => [...prev, { 
+      type: currentStimulus.type, 
+      rxTime, 
+      correct: isCorrect 
+    }]);
+
+    setStroopFeedback(isCorrect ? '✅ 正確' : '❌ 錯誤');
+    setStroopPhase('feedback');
+
+    setTimeout(() => {
+      if (stroopTrial + 1 < stroopTotalTrials) {
+        setStroopTrial(prev => prev + 1);
+        nextStroopTrial();
+      } else {
+        // 結算 Stroop
+        const finalData = [...stroopData, { type: currentStimulus.type, rxTime, correct: isCorrect }];
+        const congruentTrials = finalData.filter(d => d.type === 'congruent' && d.correct);
+        const incongruentTrials = finalData.filter(d => d.type === 'incongruent' && d.correct);
+        
+        const avgCongruent = congruentTrials.length > 0 ? congruentTrials.reduce((sum, d) => sum + d.rxTime, 0) / congruentTrials.length : 0;
+        const avgIncongruent = incongruentTrials.length > 0 ? incongruentTrials.reduce((sum, d) => sum + d.rxTime, 0) / incongruentTrials.length : 0;
+        const accuracy = (finalData.filter(d => d.correct).length / stroopTotalTrials) * 100;
+
+        setResults(prev => ({
+          ...prev,
+          stroop: { 
+            congruentTime: Math.round(avgCongruent), 
+            incongruentTime: Math.round(avgIncongruent), 
+            accuracy: Math.round(accuracy), 
+            completed: true 
+          }
+        }));
+        setScreen(results.tol.completed ? 'results' : 'menu');
+      }
+    }, 800);
+  };
+
+  // --- 畫面渲染組件 ---
+  const renderMenu = () => (
+    <div className="flex flex-col items-center justify-center p-8 text-center space-y-8 animate-fade-in">
+      <div className="bg-green-700 text-white p-6 rounded-2xl shadow-xl w-full max-w-2xl">
+        <h1 className="text-3xl font-bold mb-2 flex items-center justify-center gap-2">
+          <BrainCircuit size={32}/> 桌球高階認知測試系統
+        </h1>
+        <p className="text-green-100 mt-2">基於研究：身體活動與久坐對高齡者執行功能之影響</p>
+      </div>
+
+      <div className="grid md:grid-cols-2 gap-6 w-full max-w-2xl">
+        <div className="bg-white p-6 rounded-2xl shadow-md border-t-4 border-emerald-500 flex flex-col items-center">
+          <h2 className="text-xl font-bold mb-4 text-slate-800">1. 戰術規劃測驗 (TOL)</h2>
+          <p className="text-slate-600 text-sm mb-6 h-16">
+            衡量高階執行功能（計畫與問題解決）。你需要根據戰術目標，排出正確的擊球動作順序。
+          </p>
+          <button 
+            onClick={() => setScreen('tol_intro')}
+            className={`w-full py-3 rounded-lg font-bold flex justify-center items-center gap-2 transition-all ${results.tol.completed ? 'bg-slate-200 text-slate-500' : 'bg-emerald-500 text-white hover:bg-emerald-600 shadow-md hover:shadow-lg'}`}
+          >
+            {results.tol.completed ? '已完成' : <><Play size={20}/> 開始測驗</>}
+          </button>
+        </div>
+
+        <div className="bg-white p-6 rounded-2xl shadow-md border-t-4 border-blue-500 flex flex-col items-center">
+          <h2 className="text-xl font-bold mb-4 text-slate-800">2. 旋轉抑制測驗 (Stroop)</h2>
+          <p className="text-slate-600 text-sm mb-6 h-16">
+            衡量核心執行功能（反應抑制）。利用顏色與文字的不一致，測試你抗干擾的反應速度。
+          </p>
+          <button 
+            onClick={() => setScreen('stroop_intro')}
+            className={`w-full py-3 rounded-lg font-bold flex justify-center items-center gap-2 transition-all ${results.stroop.completed ? 'bg-slate-200 text-slate-500' : 'bg-blue-500 text-white hover:bg-blue-600 shadow-md hover:shadow-lg'}`}
+          >
+            {results.stroop.completed ? '已完成' : <><Play size={20}/> 開始測驗</>}
+          </button>
+        </div>
+      </div>
+
+      {results.tol.completed && results.stroop.completed && (
+        <button 
+          onClick={() => setScreen('results')}
+          className="mt-4 bg-amber-500 text-white px-8 py-3 rounded-full font-bold text-lg shadow-lg hover:bg-amber-600 animate-bounce"
+        >
+          查看綜合分析報告
+        </button>
+      )}
+    </div>
+  );
+
+  const renderTolGame = () => {
+    const level = tolLevels[currentLevelIndex];
+    return (
+      <div className="flex flex-col items-center p-6 max-w-3xl mx-auto w-full animate-fade-in">
+        <div className="w-full flex justify-between items-center mb-6">
+          <h2 className="text-2xl font-bold text-slate-800">戰術規劃測驗 (TOL)</h2>
+          <span className="bg-emerald-100 text-emerald-800 px-3 py-1 rounded-full font-semibold">關卡 {currentLevelIndex + 1} / {tolLevels.length}</span>
+        </div>
+
+        <div className="bg-slate-800 w-full p-6 rounded-xl shadow-inner mb-6 text-white border-b-4 border-emerald-500">
+          <h3 className="text-emerald-400 font-bold mb-2 flex items-center gap-2"><ArrowRight size={20}/> 教練指令：</h3>
+          <p className="text-lg leading-relaxed">{level.goal}</p>
+        </div>
+
+        <div className="w-full mb-8">
+          <h3 className="text-slate-600 font-bold mb-3">您的戰術排程（點擊下方選項加入）：</h3>
+          <div className="flex gap-2 min-h-[60px] bg-slate-100 p-3 rounded-lg border-2 border-dashed border-slate-300">
+            {tolSequence.map((move, idx) => (
+              <div 
+                key={idx} 
+                onClick={() => handleTolRemove(idx)}
+                className="bg-emerald-500 text-white px-4 py-2 rounded shadow cursor-pointer hover:bg-red-500 transition-colors flex items-center gap-2"
+                title="點擊移除"
+              >
+                {move} <X size={14}/>
+              </div>
+            ))}
+            {tolSequence.length === 0 && <span className="text-slate-400 italic my-auto ml-2">尚未選擇動作...</span>}
+          </div>
+        </div>
+
+        <div className="w-full mb-8">
+          <h3 className="text-slate-600 font-bold mb-3">可用動作庫：</h3>
+          <div className="flex flex-wrap gap-3">
+            {level.options.map((move, idx) => (
+              <button 
+                key={idx}
+                onClick={() => handleTolSelect(move)}
+                disabled={tolSequence.length >= level.target.length}
+                className="bg-white border-2 border-slate-200 text-slate-700 font-bold px-5 py-3 rounded-lg shadow-sm hover:border-emerald-400 hover:text-emerald-600 transition-all disabled:opacity-50"
+              >
+                {move}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="w-full flex justify-end">
+          <button 
+            onClick={checkTolSequence}
+            disabled={tolSequence.length !== level.target.length}
+            className="bg-slate-800 text-white px-8 py-3 rounded-lg font-bold shadow hover:bg-slate-900 disabled:opacity-50 flex items-center gap-2"
+          >
+            <Check size={20}/> 送出戰術
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  const renderStroopGame = () => {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[500px] p-6 max-w-2xl mx-auto w-full select-none animate-fade-in">
+        <div className="w-full flex justify-between items-center mb-8">
+          <h2 className="text-2xl font-bold text-slate-800">反應抑制測驗 (Stroop)</h2>
+          <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full font-semibold">進度 {stroopTrial + 1} / {stroopTotalTrials}</span>
+        </div>
+
+        <div className="text-slate-600 mb-8 text-center bg-slate-100 p-4 rounded-lg w-full">
+          <p className="font-bold">規則提醒：請根據球的<span className="text-red-500 text-lg mx-1">「顏色」</span>做出反應！</p>
+          <p className="text-sm">🔴 紅色 = 上旋(壓球) ｜ 🔵 藍色 = 下旋(搓球) ｜ <span className="underline decoration-wavy">請忽略球上的文字干擾</span></p>
+        </div>
+
+        <div className="flex-1 flex flex-col items-center justify-center w-full min-h-[200px]">
+          {stroopPhase === 'ready' && (
+            <div className="text-4xl font-bold text-slate-300 animate-pulse">準備...</div>
+          )}
+          
+          {stroopPhase === 'show' && currentStimulus && (
+            <div className={`w-32 h-32 rounded-full ${currentStimulus.color} shadow-2xl flex items-center justify-center transform transition-transform duration-100 scale-110`}>
+              <span className="text-white text-3xl font-black drop-shadow-md">{currentStimulus.text}</span>
+            </div>
+          )}
+
+          {stroopPhase === 'feedback' && (
+            <div className={`text-3xl font-bold ${stroopFeedback.includes('✅') ? 'text-green-500' : 'text-red-500'}`}>
+              {stroopFeedback}
+            </div>
+          )}
+        </div>
+
+        <div className="grid grid-cols-2 gap-6 w-full mt-12">
+          <button 
+            onPointerDown={() => handleStroopResponse('上旋(壓球)')}
+            className="h-24 bg-red-100 border-4 border-red-500 text-red-700 text-xl font-bold rounded-2xl shadow hover:bg-red-200 active:scale-95 transition-transform"
+          >
+            🔴 上旋 (壓球)
+          </button>
+          <button 
+            onPointerDown={() => handleStroopResponse('下旋(搓球)')}
+            className="h-24 bg-blue-100 border-4 border-blue-500 text-blue-700 text-xl font-bold rounded-2xl shadow hover:bg-blue-200 active:scale-95 transition-transform"
+          >
+            🔵 下旋 (搓球)
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  const renderResults = () => {
+    // 根據論文內容進行簡單的評語邏輯
+    const stroopDiff = results.stroop.incongruentTime - results.stroop.congruentTime;
+    
+    return (
+      <div className="flex flex-col items-center p-8 max-w-3xl mx-auto w-full animate-fade-in">
+        <h2 className="text-3xl font-black text-slate-800 mb-8 flex items-center gap-3">
+          <Activity className="text-emerald-500" size={36}/> 測試結果與文獻分析
+        </h2>
+
+        <div className="grid md:grid-cols-2 gap-6 w-full mb-8">
+          {/* TOL 結果 */}
+          <div className="bg-white p-6 rounded-2xl shadow-lg border-t-4 border-emerald-500">
+            <h3 className="text-lg font-bold text-slate-700 mb-4 border-b pb-2">TOL 戰術規劃表現</h3>
+            <div className="space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500">總決策時間 (TPST)</span>
+                <span className="text-xl font-bold text-slate-800">{results.tol.time} 秒</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500">規劃誤差步數 (TMS)</span>
+                <span className={`text-xl font-bold ${results.tol.errors === 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                  {results.tol.errors} 次
+                </span>
+              </div>
+            </div>
+            <div className="mt-4 p-3 bg-slate-50 rounded text-sm text-slate-600 leading-relaxed">
+              <strong>文獻連結：</strong>研究顯示，高身體活動且低久坐（PHSL）的族群在 TMS（步數誤差）與 TPST（決策時間）表現顯著較佳。您的低誤差代表具備良好的「高階執行功能與計畫效率」。
+            </div>
+          </div>
+
+          {/* Stroop 結果 */}
+          <div className="bg-white p-6 rounded-2xl shadow-lg border-t-4 border-blue-500">
+            <h3 className="text-lg font-bold text-slate-700 mb-4 border-b pb-2">Stroop 反應抑制表現</h3>
+            <div className="space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500">一致情境反應</span>
+                <span className="text-lg font-bold text-slate-800">{results.stroop.congruentTime} ms</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500">干擾情境反應</span>
+                <span className="text-lg font-bold text-slate-800">{results.stroop.incongruentTime} ms</span>
+              </div>
+              <div className="flex justify-between items-center pt-2 border-t border-slate-100">
+                <span className="font-bold text-slate-700">Stroop 效應遲滯</span>
+                <span className="text-xl font-bold text-amber-500">+{stroopDiff > 0 ? stroopDiff : 0} ms</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500">整體正確率</span>
+                <span className="text-lg font-bold text-slate-800">{results.stroop.accuracy}%</span>
+              </div>
+            </div>
+            <div className="mt-4 p-3 bg-slate-50 rounded text-sm text-slate-600 leading-relaxed">
+              <strong>文獻連結：</strong>本測驗衡量「核心執行功能」。研究指出，身體活動對 Stroop 測驗表現的影響無顯著差異，代表抑制控制能力可能較不受單純活動量影響，而需專項的抗干擾訓練。
+            </div>
+          </div>
+        </div>
+
+        <button 
+          onClick={() => {
+            setResults({
+              tol: { time: 0, errors: 0, completed: false },
+              stroop: { congruentTime: 0, incongruentTime: 0, accuracy: 0, completed: false }
+            });
+            setScreen('menu');
+          }}
+          className="bg-slate-800 text-white px-8 py-3 rounded-full font-bold flex items-center gap-2 hover:bg-slate-700 transition-colors"
+        >
+          <RotateCcw size={20}/> 重新進行綜合測試
+        </button>
+      </div>
+    );
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-50 font-sans text-slate-800 flex flex-col">
+      {/* 導覽列 */}
+      <header className="bg-white shadow-sm p-4 flex items-center justify-between">
+        <div className="flex items-center gap-2 text-emerald-700 font-black text-xl tracking-wider">
+          <div className="w-8 h-8 bg-emerald-500 rounded-full flex items-center justify-center text-white">🏓</div>
+          認知訓練實驗室
+        </div>
+        {screen !== 'menu' && (
+          <button onClick={() => setScreen('menu')} className="text-slate-400 hover:text-slate-600 font-semibold text-sm">
+            返回主選單
+          </button>
+        )}
+      </header>
+
+      {/* 主要內容區 */}
+      <main className="flex-1 flex items-center justify-center p-4">
+        {screen === 'menu' && renderMenu()}
+        
+        {screen === 'tol_intro' && (
+          <div className="text-center max-w-md animate-fade-in">
+            <h2 className="text-2xl font-bold mb-4">戰術規劃測驗說明</h2>
+            <p className="text-slate-600 mb-6 text-left bg-white p-4 rounded shadow">
+              畫面上會出現教練下達的戰術指令。<br/><br/>
+              請從下方的「動作庫」中，點擊正確的擊球動作，依序排入戰術板中。排錯會記錄一次誤差(TMS)，並計算您完成規畫的總時間(TPST)。
+            </p>
+            <button onClick={startTOL} className="bg-emerald-500 text-white w-full py-3 rounded-lg font-bold text-lg hover:bg-emerald-600">
+              明白，開始測驗
+            </button>
+          </div>
+        )}
+
+        {screen === 'tol_game' && renderTolGame()}
+
+        {screen === 'stroop_intro' && (
+          <div className="text-center max-w-md animate-fade-in">
+            <h2 className="text-2xl font-bold mb-4">旋轉抑制測驗說明</h2>
+            <p className="text-slate-600 mb-6 text-left bg-white p-4 rounded shadow">
+              畫面上會快速飛來一顆球。<br/><br/>
+              如果球是 <strong className="text-red-500">紅色</strong>，請立刻點擊「上旋(壓球)」。<br/>
+              如果球是 <strong className="text-blue-500">藍色</strong>，請立刻點擊「下旋(搓球)」。<br/><br/>
+              <span className="bg-yellow-100 p-1">注意：請忽略球上面寫的文字干擾！</span>
+            </p>
+            <button onClick={startStroop} className="bg-blue-500 text-white w-full py-3 rounded-lg font-bold text-lg hover:bg-blue-600">
+              明白，開始測驗
+            </button>
+          </div>
+        )}
+
+        {screen === 'stroop_game' && renderStroopGame()}
+
+        {screen === 'results' && renderResults()}
+      </main>
+
+      {/* 簡單動畫樣式 */}
+      <style dangerouslySetInnerHTML={{__html: `
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(10px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in {
+          animation: fadeIn 0.4s ease-out forwards;
+        }
+      `}} />
+    </div>
+  );
+}
