@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>倫敦塔任務 (Tower of London Task)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .peg-hover:hover { background-color: rgba(156, 163, 175, 0.2); }
+        .peg-selected { background-color: rgba(209, 213, 219, 0.3); }
+        .bead-selected {
+            border-color: #facc15 !important; /* yellow-400 */
+            transform: translateY(-1rem);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            --tw-ring-offset-shadow: var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);
+            --tw-ring-shadow: var(--tw-ring-inset) 0 0 0 calc(4px + var(--tw-ring-offset-width)) #fef08a;
+            box-shadow: var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow, 0 0 #0000);
+        }
+    </style>
+</head>
+<body class="min-h-screen bg-slate-50 text-gray-800 font-sans p-4 md:p-8">
+
+    <div class="max-w-4xl mx-auto bg-white rounded-2xl shadow-xl overflow-hidden">
+        
+        <!-- Header -->
+        <div class="bg-slate-800 text-white p-6 text-center">
+            <h1 class="text-3xl font-bold">倫敦塔任務 (Tower of London)</h1>
+            <p class="text-slate-300 mt-2">高階執行功能評估 - 計畫與問題解決能力</p>
+        </div>
+
+        <div class="p-6 md:p-10">
+            
+            <!-- Welcome Screen -->
+            <div id="screen-welcome" class="text-center space-y-6 block">
+                <h2 class="text-2xl font-semibold">研究簡介與指導語</h2>
+                <div class="text-left bg-blue-50 p-6 rounded-lg text-blue-900 space-y-4">
+                    <p>歡迎參與本研究。這項測驗將評估您的「計畫與問題解決能力」。</p>
+                    <p><strong>任務規則：</strong></p>
+                    <ul class="list-disc pl-5 space-y-2">
+                        <li>畫面上會顯示兩個木板：上方是<strong>「目標位置」</strong>，下方是<strong>「您的操作區」</strong>。</li>
+                        <li>您的任務是移動下方板子上的珠子，使其排列與「目標位置」完全相同。</li>
+                        <li>每次只能移動<strong>一顆</strong>位於柱子最頂端的珠子。</li>
+                        <li>柱子有高度限制：左邊柱子最多放 3 顆，中間最多放 2 顆，右邊最多放 1 顆。</li>
+                        <li>請盡可能用<strong>最少的步數</strong>及<strong>最快的速度</strong>完成任務。</li>
+                    </ul>
+                </div>
+                <button onclick="startGame()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-full text-lg shadow-lg transition transform hover:scale-105">
+                    開始測驗
+                </button>
+            </div>
+
+            <!-- Playing Screen -->
+            <div id="screen-playing" class="hidden flex-col md:flex-row gap-8 items-center justify-center">
+                <!-- Goal Area -->
+                <div class="flex-1 w-full opacity-80 pointer-events-none">
+                    <div class="flex flex-col items-center bg-gray-100 p-6 rounded-xl shadow-inner mb-6 w-full max-w-md mx-auto">
+                        <h3 class="text-lg font-bold mb-4 text-gray-700">目標位置 (Goal)</h3>
+                        <div id="goal-board" class="flex justify-center items-end space-x-8 h-48 border-b-8 border-yellow-800 w-full pb-1"></div>
+                        <div class="w-full text-center mt-2 text-sm text-gray-500">容納限制: 左(3) | 中(2) | 右(1)</div>
+                    </div>
+                </div>
+
+                <!-- Status Info -->
+                <div class="flex flex-col items-center justify-center p-4 bg-slate-100 rounded-xl min-w-[200px]">
+                    <div id="level-info" class="text-lg font-bold text-slate-700 mb-2">關卡: 1 / 5</div>
+                    <div id="min-moves-info" class="text-sm text-slate-500 mb-4">最少需求步數: 3</div>
+                    <div class="text-3xl font-black text-blue-600" id="moves-display">步數: 0</div>
+                    <div id="selection-warning" class="mt-4 text-xs font-bold text-orange-500 animate-pulse hidden">已選擇珠子，請點擊目標柱子</div>
+                </div>
+
+                <!-- Interactive Area -->
+                <div class="flex-1 w-full">
+                    <div class="flex flex-col items-center bg-gray-100 p-6 rounded-xl shadow-inner mb-6 w-full max-w-md mx-auto">
+                        <h3 class="text-lg font-bold mb-4 text-gray-700">您的操作區 (Start)</h3>
+                        <div id="interactive-board" class="flex justify-center items-end space-x-8 h-48 border-b-8 border-yellow-800 w-full pb-1"></div>
+                        <div class="w-full text-center mt-2 text-sm text-gray-500">容納限制: 左(3) | 中(2) | 右(1)</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Level End Screen -->
+            <div id="screen-level-end" class="hidden text-center space-y-6">
+                <h2 class="text-3xl font-bold text-green-600">關卡完成！</h2>
+                <div class="text-xl" id="level-result-text">
+                    您使用了 <span class="font-bold text-blue-600">X</span> 步完成。 (最少需 Y 步)
+                </div>
+                <button onclick="nextLevel()" id="next-level-btn" class="bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-8 rounded-full text-lg shadow-lg transition">
+                    下一關
+                </button>
+            </div>
+
+            <!-- Finished & Results Screen -->
+            <div id="screen-finished" class="hidden space-y-8">
+                <div class="text-center">
+                    <h2 class="text-3xl font-bold text-slate-800">測驗結束</h2>
+                    <p class="text-slate-500 mt-2">以下是根據論文定義萃取出的執行功能研究指標。</p>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="min-w-full bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm text-center">
+                        <thead class="bg-slate-100">
+                            <tr>
+                                <th class="py-3 px-4 border-b text-sm font-semibold text-gray-700">關卡 (Level)</th>
+                                <th class="py-3 px-4 border-b text-sm font-semibold text-gray-700" title="額外移動次數">移動分數 (TMS)</th>
+                                <th class="py-3 px-4 border-b text-sm font-semibold text-gray-700" title="是否最少步數完成">正確分數 (TCS)</th>
+                                <th class="py-3 px-4 border-b text-sm font-semibold text-gray-700" title="計畫時間">初始時間 (TIT) 秒</th>
+                                <th class="py-3 px-4 border-b text-sm font-semibold text-gray-700" title="執行操作時間">執行時間 (TET) 秒</th>
+                                <th class="py-3 px-4 border-b text-sm font-semibold text-gray-700" title="總花費時間">總時間 (TPST) 秒</th>
+                            </tr>
+                        </thead>
+                        <tbody id="results-tbody">
+                            <!-- Results will be injected here -->
+                        </tbody>
+                        <tfoot class="bg-blue-50 font-bold" id="results-tfoot">
+                            <!-- Totals will be injected here -->
+                        </tfoot>
+                    </table>
+                </div>
+
+                <div class="bg-slate-50 p-4 rounded-lg border border-slate-200 text-sm text-slate-600 space-y-2">
+                    <p><strong>指標說明 (根據論文定義)：</strong></p>
+                    <ul class="list-disc pl-5">
+                        <li><strong>TMS (Total Move Score):</strong> 代表「問題解決效率」，數值越低越好（0為完美）。算法：實際步數 - 最少需求步數。</li>
+                        <li><strong>TCS (Total Correct Score):</strong> 代表「工作記憶與解題能力」，數值越高越好。完全使用最少步數過關得 1 分，否則 0 分。</li>
+                        <li><strong>TIT (Total Initial Time):</strong> 代表「計畫時間」，受試者思考策略所需的時間。</li>
+                        <li><strong>TET (Total Executive Time):</strong> 代表「執行效率」，實際操作珠子解題所需時間。</li>
+                        <li><strong>TPST (Total Problem-Solving Time):</strong> 代表「整體計畫與執行效率」，為 TIT + TET。</li>
+                    </ul>
+                </div>
+
+                <div class="text-center pt-4">
+                    <button onclick="resetGame()" class="bg-slate-800 hover:bg-slate-900 text-white font-bold py-3 px-8 rounded-full text-lg shadow transition">
+                        重新測驗
+                    </button>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        // 遊戲資料設定
+        const LEVELS = [
+            { id: 1, minMoves: 3, start: [['R', 'G'], ['B'], []], goal: [['R', 'G', 'B'], [], []] },
+            { id: 2, minMoves: 4, start: [['R', 'G', 'B'], [], []], goal: [['R'], ['B', 'G'], []] },
+            { id: 3, minMoves: 5, start: [['G'], ['B', 'R'], []], goal: [['R', 'G'], [], ['B']] },
+            { id: 4, minMoves: 6, start: [['R', 'B', 'G'], [], []], goal: [['G'], ['R'], ['B']] },
+            { id: 5, minMoves: 7, start: [['G', 'R'], [], ['B']], goal: [['R', 'B', 'G'], [], []] }
+        ];
+        
+        const PEG_CAPACITIES = [3, 2, 1];
+        const COLORS = {
+            'R': 'bg-red-500',
+            'G': 'bg-green-500',
+            'B': 'bg-blue-500'
+        };
+
+        // 狀態變數
+        let currentLevelIndex = 0;
+        let boardState = [[], [], []];
+        let selectedPeg = null;
+        
+        // 測驗指標變數
+        let movesMade = 0;
+        let levelStartTime = 0;
+        let firstMoveTime = 0;
+        let results = [];
+
+        // 切換畫面
+        function showScreen(screenId) {
+            document.getElementById('screen-welcome').classList.add('hidden');
+            document.getElementById('screen-welcome').classList.remove('block');
+            document.getElementById('screen-playing').classList.add('hidden');
+            document.getElementById('screen-playing').classList.remove('flex');
+            document.getElementById('screen-level-end').classList.add('hidden');
+            document.getElementById('screen-level-end').classList.remove('block');
+            document.getElementById('screen-finished').classList.add('hidden');
+            document.getElementById('screen-finished').classList.remove('block');
+
+            const target = document.getElementById(screenId);
+            if (screenId === 'screen-playing') {
+                target.classList.remove('hidden');
+                target.classList.add('flex');
+            } else {
+                target.classList.remove('hidden');
+                target.classList.add('block');
+            }
+        }
+
+        function startGame() {
+            results = [];
+            currentLevelIndex = 0;
+            startLevel(currentLevelIndex);
+        }
+
+        function resetGame() {
+            startGame();
+        }
+
+        function startLevel(index) {
+            // 深拷貝陣列
+            boardState = JSON.parse(JSON.stringify(LEVELS[index].start));
+            selectedPeg = null;
+            movesMade = 0;
+            firstMoveTime = 0;
+            
+            // 更新 UI 文字
+            document.getElementById('level-info').innerText = `關卡: ${index + 1} / ${LEVELS.length}`;
+            document.getElementById('min-moves-info').innerText = `最少需求步數: ${LEVELS[index].minMoves}`;
+            document.getElementById('moves-display').innerText = `步數: 0`;
+            document.getElementById('selection-warning').classList.add('hidden');
+
+            renderGoalBoard();
+            renderInteractiveBoard();
+            
+            showScreen('screen-playing');
+            levelStartTime = Date.now();
+        }
+
+        function renderGoalBoard() {
+            const container = document.getElementById('goal-board');
+            container.innerHTML = generateBoardHTML(LEVELS[currentLevelIndex].goal, false);
+        }
+
+        function renderInteractiveBoard() {
+            const container = document.getElementById('interactive-board');
+            container.innerHTML = generateBoardHTML(boardState, true);
+        }
+
+        function generateBoardHTML(state, isInteractive) {
+            let html = '';
+            for (let i = 0; i < PEG_CAPACITIES.length; i++) {
+                const capacity = PEG_CAPACITIES[i];
+                const height = capacity * 40;
+                const isPegSelected = isInteractive && selectedPeg === i;
+                const bgClass = isPegSelected ? 'peg-selected' : '';
+                const clickHandler = isInteractive ? `onclick="handlePegClick(${i})"` : '';
+                
+                html += `
+                <div class="relative flex flex-col-reverse items-center justify-start w-16 cursor-pointer" style="height: ${height}px" ${clickHandler}>
+                    <div class="absolute bottom-0 w-3 bg-yellow-600 rounded-t-full z-0" style="height: 100%;"></div>
+                `;
+
+                if (state[i]) {
+                    for (let j = 0; j < state[i].length; j++) {
+                        const bead = state[i][j];
+                        const isTopBead = j === state[i].length - 1;
+                        const isSelected = isInteractive && selectedPeg === i && isTopBead;
+                        const beadClass = isSelected ? 'bead-selected' : 'border-gray-800 shadow-md';
+                        
+                        html += `
+                        <div class="w-12 h-12 rounded-full z-10 border-2 transition-transform duration-200 ${COLORS[bead]} ${beadClass}" style="margin-bottom: 2px;"></div>
+                        `;
+                    }
+                }
+
+                if (isInteractive) {
+                    html += `<div class="absolute -inset-2 rounded-lg z-20 peg-hover ${bgClass}"></div>`;
+                }
+
+                html += `</div>`;
+            }
+            return html;
+        }
+
+        // 處理柱子點擊
+        window.handlePegClick = function(pegIndex) {
+            if (selectedPeg === null) {
+                // 選擇珠子 (該柱子必須有珠子)
+                if (boardState[pegIndex].length > 0) {
+                    selectedPeg = pegIndex;
+                    document.getElementById('selection-warning').classList.remove('hidden');
+                }
+            } else {
+                // 嘗試放下或取消選擇
+                if (selectedPeg === pegIndex) {
+                    selectedPeg = null; // 取消選擇
+                    document.getElementById('selection-warning').classList.add('hidden');
+                } else {
+                    // 檢查目標柱子容量
+                    if (boardState[pegIndex].length < PEG_CAPACITIES[pegIndex]) {
+                        // 合法移動
+                        const bead = boardState[selectedPeg].pop();
+                        boardState[pegIndex].push(bead);
+                        
+                        selectedPeg = null;
+                        document.getElementById('selection-warning').classList.add('hidden');
+                        
+                        movesMade++;
+                        document.getElementById('moves-display').innerText = `步數: ${movesMade}`;
+
+                        if (movesMade === 1 && firstMoveTime === 0) {
+                            firstMoveTime = Date.now();
+                        }
+                        
+                        // 檢查是否過關
+                        if (checkWinCondition()) {
+                            setTimeout(handleLevelComplete, 100); // 稍微延遲讓最後一顆珠子畫面渲染完
+                        }
+                    } else {
+                        // 容量滿了，取消選擇
+                        selectedPeg = null;
+                        document.getElementById('selection-warning').classList.add('hidden');
+                    }
+                }
+            }
+            renderInteractiveBoard(); // 更新畫面
+        };
+
+        function checkWinCondition() {
+            const goal = LEVELS[currentLevelIndex].goal;
+            for (let i = 0; i < 3; i++) {
+                if (boardState[i].length !== goal[i].length) return false;
+                for (let j = 0; j < boardState[i].length; j++) {
+                    if (boardState[i][j] !== goal[i][j]) return false;
+                }
+            }
+            return true;
+        }
+
+        function handleLevelComplete() {
+            const endTime = Date.now();
+            const currentLevel = LEVELS[currentLevelIndex];
+            
+            // 計算論文指標
+            const tit = firstMoveTime > 0 ? (firstMoveTime - levelStartTime) / 1000 : 0;
+            const tet = firstMoveTime > 0 ? (endTime - firstMoveTime) / 1000 : (endTime - levelStartTime) / 1000;
+            const tpst = tit + tet;
+            const tms = Math.max(0, movesMade - currentLevel.minMoves);
+            const isPerfect = movesMade === currentLevel.minMoves;
+
+            results.push({
+                levelId: currentLevel.id,
+                minMoves: currentLevel.minMoves,
+                actualMoves: movesMade,
+                TMS: tms,
+                TCS: isPerfect ? 1 : 0,
+                TIT: tit,
+                TET: tet,
+                TPST: tpst
+            });
+
+            // 更新過關畫面文字
+            document.getElementById('level-result-text').innerHTML = `
+                您使用了 <span class="font-bold text-blue-600">${movesMade}</span> 步完成。
+                (最少需 ${currentLevel.minMoves} 步)
+            `;
+
+            if (currentLevelIndex + 1 < LEVELS.length) {
+                document.getElementById('next-level-btn').innerText = '下一關';
+            } else {
+                document.getElementById('next-level-btn').innerText = '查看研究報告';
+            }
+
+            showScreen('screen-level-end');
+        }
+
+        window.nextLevel = function() {
+            if (currentLevelIndex + 1 < LEVELS.length) {
+                currentLevelIndex++;
+                startLevel(currentLevelIndex);
+            } else {
+                showResultsScreen();
+            }
+        };
+
+        function showResultsScreen() {
+            const tbody = document.getElementById('results-tbody');
+            const tfoot = document.getElementById('results-tfoot');
+            
+            let tbodyHTML = '';
+            let totalTMS = 0, totalTCS = 0, totalTIT = 0, totalTET = 0, totalTPST = 0;
+
+            results.forEach(r => {
+                totalTMS += r.TMS;
+                totalTCS += r.TCS;
+                totalTIT += r.TIT;
+                totalTET += r.TET;
+                totalTPST += r.TPST;
+
+                tbodyHTML += `
+                <tr class="hover:bg-gray-50">
+                    <td class="py-2 px-4 border-b text-gray-800">Q${r.levelId}</td>
+                    <td class="py-2 px-4 border-b text-gray-600">${r.TMS}</td>
+                    <td class="py-2 px-4 border-b text-gray-600">${r.TCS === 1 ? '✅ (1)' : '❌ (0)'}</td>
+                    <td class="py-2 px-4 border-b text-gray-600">${r.TIT.toFixed(2)}</td>
+                    <td class="py-2 px-4 border-b text-gray-600">${r.TET.toFixed(2)}</td>
+                    <td class="py-2 px-4 border-b text-gray-600 font-bold">${r.TPST.toFixed(2)}</td>
+                </tr>
+                `;
+            });
+
+            tbody.innerHTML = tbodyHTML;
+
+            tfoot.innerHTML = `
+                <tr>
+                    <td class="py-3 px-4 text-blue-900">總計 (Total)</td>
+                    <td class="py-3 px-4 text-blue-900">${totalTMS} 分</td>
+                    <td class="py-3 px-4 text-blue-900">${totalTCS} 分</td>
+                    <td class="py-3 px-4 text-blue-900">${totalTIT.toFixed(2)} s</td>
+                    <td class="py-3 px-4 text-blue-900">${totalTET.toFixed(2)} s</td>
+                    <td class="py-3 px-4 text-blue-900">${totalTPST.toFixed(2)} s</td>
+                </tr>
+            `;
+
+            showScreen('screen-finished');
+        }
+    </script>
+</body>
+</html>
